@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hệ Thống Trắc Nghiệm CNXHKH</title>
+    <title>Hệ Thống Ôn Luyện Trắc Nghiệm CNXHKH</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         body { background: #f0f2f5; color: #1c1e21; padding: 20px; }
@@ -30,15 +30,12 @@
         .tf-btn { padding: 6px 14px; margin-right: 5px; border: 1px solid #ccc; background: #fff; cursor: pointer; border-radius: 4px; font-weight: bold; }
         .tf-btn.selected-true { background: #2e7d32; color: white; }
         .tf-btn.selected-false { background: #c62828; color: white; }
-        
         .drop-target { display: inline-block; min-width: 160px; min-height: 32px; padding: 4px 10px; border: 2px dashed #1877f2; background: #e7f3ff; border-radius: 6px; font-weight: bold; color: #1877f2; text-align: center; vertical-align: middle; cursor: pointer; }
-        .drop-target.hovered { background: #d0e7ff; border-color: #0b5ed7; }
         .draggable-words { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 15px; padding: 15px; background: #fff; border: 1px solid #ddd; border-radius: 8px; min-height: 60px; }
         body.dark .draggable-words { background: #242526; border-color: #4e4f50; }
         .drag-word { padding: 8px 16px; background: #1877f2; color: white; border-radius: 20px; cursor: grab; font-weight: bold; user-select: none; display: inline-block; }
         .drag-word:active { cursor: grabbing; }
         .drag-stmt { margin-bottom: 12px; line-height: 1.8; }
-
         .columns-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
         .columns-table th { background: #f0f2f5; border: 1px solid #ccc; padding: 10px; text-align: center; font-weight: bold; }
         body.dark .columns-table th { background: #3a3b3c; border-color: #4e4f50; }
@@ -46,8 +43,6 @@
         body.dark .columns-table td { border-color: #4e4f50; }
         .column-drop-zone { min-height: 100px; display: flex; flex-direction: column; gap: 8px; border: 2px dashed #ccc; border-radius: 6px; padding: 8px; background: #fafafa; }
         body.dark .column-drop-zone { background: #2b2c2d; border-color: #555; }
-        .column-drop-zone.hovered { border-color: #1877f2; background: #e7f3ff; }
-
         .controls { display: flex; justify-content: space-between; align-items: center; margin-top: 20px; }
         .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(38px, 1fr)); gap: 8px; margin-top: 20px; }
         .grid-btn { padding: 8px 0; border: 1px solid #ccc; background: #f0f2f5; border-radius: 4px; cursor: pointer; text-align: center; font-size: 12px; }
@@ -70,7 +65,7 @@
             </div>
             <div class="toolbar">
                 <label><b>Chọn bài học:</b></label>
-                <select id="lesson-select" onchange="loadLesson()">
+                <select id="lesson-select" onchange="autoLoadCurrentLesson()">
                     <option value="1">Bài 1: Khái luận về CNXHKH</option>
                     <option value="2">Bài 2: CNXH & Thời kỳ quá độ</option>
                     <option value="3">Bài 3: Dân chủ XHCN & Nhà nước XHCN</option>
@@ -81,45 +76,33 @@
                 </select>
                 <button class="btn btn-success" onclick="startNewQuiz()">🔀 Đảo câu hỏi & Làm mới</button>
                 <input type="file" id="file-input" accept=".json" onchange="importJSON(event)" style="display:none">
-                <button class="btn btn-primary" onclick="document.getElementById('file-input').click()">📂 Dán/Nạp file dữ liệu (.json)</button>
-                <button class="btn btn-danger" onclick="clearData()">🗑️ Xóa toàn bộ dữ liệu cũ</button>
+                <button class="btn btn-primary" onclick="document.getElementById('file-input').click()">📂 Nạp file ngoài (.json)</button>
+                <button class="btn btn-danger" onclick="clearData()">🗑️ Xóa bộ nhớ đệm</button>
             </div>
         </header>
-
         <div id="result-box" style="display:none;"></div>
-
         <div id="quiz-container">
             <div id="question-card" class="question-card">
-                <div id="q-title" class="question-title">Vui lòng nạp file dữ liệu (.json) để làm bài...</div>
+                <div id="q-title" class="question-title">Đang tự động tải dữ liệu câu hỏi từ hệ thống...</div>
                 <div id="q-options"></div>
             </div>
-
             <div class="controls">
                 <button class="btn btn-toggle" onclick="prevQuestion()">⬅ Câu trước</button>
                 <span id="q-progress" style="font-weight:bold;">0 / 0</span>
                 <button class="btn btn-toggle" onclick="nextQuestion()">Câu sau ➡</button>
                 <button class="btn btn-primary" onclick="submitQuiz()">Nộp bài</button>
             </div>
-
             <div id="grid" class="grid"></div>
         </div>
-
         <div id="review-container" class="review-box" style="display:none;">
             <h3>📋 Chi tiết kết quả làm bài:</h3>
             <div id="review-list" style="margin-top:15px;"></div>
         </div>
     </div>
-
     <script>
-        let rawQuestions = [];
-        let currentQuestions = [];
-        let currentIndex = 0;
-        let userAnswers = {};
-        let activeDropSlot = null;
-        let isSubmitted = false;
-        let draggedWord = null;
+        let rawQuestions = []; let currentQuestions = []; let currentIndex = 0;
+        let userAnswers = {}; let activeDropSlot = null; let isSubmitted = false; let draggedWord = null;
 
-        // Hàm xáo trộn mảng ngẫu nhiên (Fisher-Yates Shuffle)
         function shuffleArray(array) {
             let shuffled = [...array];
             for (let i = shuffled.length - 1; i > 0; i--) {
@@ -130,20 +113,14 @@
         }
 
         function clearData() {
-            if (confirm("Bạn có chắc chắn muốn xóa toàn bộ dữ liệu đã nạp?")) {
-                localStorage.removeItem("quiz_db");
-                rawQuestions = [];
-                currentQuestions = [];
-                document.getElementById("q-title").innerText = "Đã xóa toàn bộ dữ liệu. Vui lòng bấm '📂 Dán/Nạp file dữ liệu (.json)' để nạp lại!";
-                document.getElementById("q-options").innerHTML = "";
-                document.getElementById("grid").innerHTML = "";
-                document.getElementById("q-progress").innerText = "0 / 0";
+            if (confirm("Xóa bộ nhớ đệm trình duyệt?")) {
+                localStorage.removeItem("quiz_db"); rawQuestions = []; currentQuestions = [];
+                autoLoadCurrentLesson();
             }
         }
 
         function importJSON(event) {
-            const file = event.target.files[0];
-            if (!file) return;
+            const file = event.target.files[0]; if (!file) return;
             const reader = new FileReader();
             reader.onload = function(e) {
                 try {
@@ -151,55 +128,62 @@
                     const existingMap = new Map(rawQuestions.map(item => [item.id, item]));
                     data.forEach(item => existingMap.set(item.id, item));
                     rawQuestions = Array.from(existingMap.values());
-                    
                     localStorage.setItem("quiz_db", JSON.stringify(rawQuestions));
-                    alert(`Nạp thành công! Tổng số câu hiện có trong máy: ${rawQuestions.length} câu.`);
+                    alert(`Nạp thành công! Tổng số câu hiện có: ${rawQuestions.length} câu.`);
                     loadLesson();
-                } catch(err) {
-                    alert("File .json bị lỗi cú pháp! Hãy kiểm tra lại file.");
-                }
+                } catch(err) { alert("File .json bị lỗi cú pháp!"); }
             };
             reader.readAsText(file);
         }
 
-        window.onload = function() {
-            const saved = localStorage.getItem("quiz_db");
-            if (saved) {
-                rawQuestions = JSON.parse(saved);
-                loadLesson();
+        async function fetchLessonFile(lessonNum) {
+            try {
+                const res = await fetch(`bai${lessonNum}.json`);
+                if (res.ok) {
+                    const data = await res.json();
+                    const existingMap = new Map(rawQuestions.map(item => [item.id, item]));
+                    data.forEach(item => existingMap.set(item.id, item));
+                    rawQuestions = Array.from(existingMap.values());
+                    localStorage.setItem("quiz_db", JSON.stringify(rawQuestions));
+                }
+            } catch (e) { console.log(`Không tìm thấy file bai${lessonNum}.json trên server.`); }
+        }
+
+        async function autoLoadCurrentLesson() {
+            const selectedLesson = document.getElementById("lesson-select").value;
+            document.getElementById("q-title").innerText = "Đang tải dữ liệu bài học...";
+            
+            if (selectedLesson === "all") {
+                for (let i = 1; i <= 6; i++) await fetchLessonFile(i);
+            } else {
+                await fetchLessonFile(selectedLesson);
             }
+            loadLesson();
+        }
+
+        window.onload = async function() {
+            const saved = localStorage.getItem("quiz_db");
+            if (saved) rawQuestions = JSON.parse(saved);
+            await autoLoadCurrentLesson();
         };
 
         function loadLesson() {
-            if (!rawQuestions.length) return;
             const selectedLesson = document.getElementById("lesson-select").value;
-            
-            if (selectedLesson === "all") {
-                currentQuestions = [...rawQuestions];
-            } else {
-                currentQuestions = rawQuestions.filter(q => String(q.lesson) === String(selectedLesson));
-            }
+            if (selectedLesson === "all") currentQuestions = [...rawQuestions];
+            else currentQuestions = rawQuestions.filter(q => String(q.lesson) === String(selectedLesson));
 
             if (currentQuestions.length === 0) {
-                document.getElementById("q-title").innerText = `Chưa có dữ liệu câu hỏi cho Bài ${selectedLesson}. Vui lòng nạp thêm file .json chứa Bài ${selectedLesson}!`;
-                document.getElementById("q-options").innerHTML = "";
-                document.getElementById("grid").innerHTML = "";
-                document.getElementById("q-progress").innerText = "0 / 0";
-                return;
+                document.getElementById("q-title").innerText = `Chưa có file bai${selectedLesson}.json trên GitHub. Vui lòng kiểm tra lại file tải lên!`;
+                document.getElementById("q-options").innerHTML = ""; document.getElementById("grid").innerHTML = "";
+                document.getElementById("q-progress").innerText = "0 / 0"; return;
             }
-
             startNewQuiz();
         }
 
         function startNewQuiz() {
             if (!currentQuestions.length) return;
-            
-            // Xáo trộn thứ tự các câu hỏi
             currentQuestions = shuffleArray(currentQuestions);
-
-            currentIndex = 0;
-            userAnswers = {};
-            isSubmitted = false;
+            currentIndex = 0; userAnswers = {}; isSubmitted = false;
             document.getElementById("result-box").style.display = "none";
             document.getElementById("review-container").style.display = "none";
             renderQuestion();
@@ -210,7 +194,6 @@
             const q = currentQuestions[currentIndex];
             document.getElementById("q-title").innerText = `Câu ${currentIndex + 1}: ${q.title}`;
             document.getElementById("q-progress").innerText = `${currentIndex + 1} / ${currentQuestions.length}`;
-
             let html = "";
             if (q.type === "single") {
                 q.options.forEach((opt, idx) => {
@@ -230,181 +213,71 @@
                     const val = currentAns[idx];
                     const btnTrue = val === true ? "selected-true" : "";
                     const btnFalse = val === false ? "selected-false" : "";
-                    html += `<tr><td>${stmt}</td><td>
-                        <button class="tf-btn ${btnTrue}" onclick="selectTF(${idx}, true)">Đúng</button>
-                        <button class="tf-btn ${btnFalse}" onclick="selectTF(${idx}, false)">Sai</button>
-                    </td></tr>`;
+                    html += `<tr><td>${stmt}</td><td><button class="tf-btn ${btnTrue}" onclick="selectTF(${idx}, true)">Đúng</button><button class="tf-btn ${btnFalse}" onclick="selectTF(${idx}, false)">Sai</button></td></tr>`;
                 });
                 html += `</table>`;
             } else if (q.type === "multi-drag") {
                 const currentAns = userAnswers[q.id] || {};
                 const usedWords = Object.values(currentAns);
-
                 q.items.forEach(item => {
                     const filledWord = currentAns[item.id];
                     const activeBorder = activeDropSlot === item.id ? "border:2px solid #1877f2; background:#fff3cd;" : "";
-                    const dropBox = `<span class="drop-target" style="${activeBorder}" 
-                                        ondragover="allowDrop(event)" 
-                                        ondrop="dropToSlot(event, ${item.id})" 
-                                        onclick="setSlot(${item.id})">
-                                        ${filledWord ? `<div class="drag-word" draggable="true" ondragstart="dragStart(event, '${filledWord}')">${filledWord}</div>` : "(Kéo thả từ vào đây)"}
-                                     </span>`;
-                    const stmtHtml = item.stmt.replace("{drop}", dropBox);
-                    html += `<div class="drag-stmt">${stmtHtml}</div>`;
+                    const dropBox = `<span class="drop-target" style="${activeBorder}" ondragover="allowDrop(event)" ondrop="dropToSlot(event, ${item.id})" onclick="setSlot(${item.id})">${filledWord ? `<div class="drag-word" draggable="true" ondragstart="dragStart(event, '${filledWord}')">${filledWord}</div>` : "(Kéo thả từ vào đây)"}</span>`;
+                    html += `<div class="drag-stmt">${item.stmt.replace("{drop}", dropBox)}</div>`;
                 });
-
-                html += `<div class="draggable-words" ondragover="allowDrop(event)" ondrop="dropToBank(event)">
-                            <p style="width:100%; font-size:13px; color:#666;">KÉO TỪ BÊN DƯỚI THẢ VÀO Ô TRỐNG (HOẶC KÉO NGƯỢC LẠI BÊN DƯỚI ĐỂ BỎ CHỌN):</p>`;
-                q.words.forEach(w => {
-                    if (!usedWords.includes(w)) {
-                        html += `<div class="drag-word" draggable="true" ondragstart="dragStart(event, '${w}')" onclick="clickWord('${w}')">${w}</div>`;
-                    }
-                });
+                html += `<div class="draggable-words" ondragover="allowDrop(event)" ondrop="dropToBank(event)"><p style="width:100%; font-size:13px; color:#666;">KÉO TỪ BÊN DƯỚI THẢ VÀO Ô TRỐNG:</p>`;
+                q.words.forEach(w => { if (!usedWords.includes(w)) html += `<div class="drag-word" draggable="true" ondragstart="dragStart(event, '${w}')" onclick="clickWord('${w}')">${w}</div>`; });
                 html += `</div>`;
             } else if (q.type === "multi-column") {
                 const currentAns = userAnswers[q.id] || { 0: [], 1: [] };
                 const usedWords = [...(currentAns[0] || []), ...(currentAns[1] || [])];
-
                 html += `<table class="columns-table"><tr>`;
-                q.columns.forEach((colTitle, colIdx) => {
-                    html += `<th>${colTitle}</th>`;
-                });
+                q.columns.forEach((colTitle) => { html += `<th>${colTitle}</th>`; });
                 html += `</tr><tr>`;
-
                 q.columns.forEach((_, colIdx) => {
                     const colWords = currentAns[colIdx] || [];
-                    html += `<td>
-                        <div class="column-drop-zone" ondragover="allowDrop(event)" ondrop="dropToColumn(event, ${colIdx})">`;
-                    colWords.forEach(w => {
-                        html += `<div class="drag-word" draggable="true" ondragstart="dragStart(event, '${w}')">${w}</div>`;
-                    });
-                    if (colWords.length === 0) {
-                        html += `<span style="color:#aaa; font-size:12px; text-align:center; padding:20px 0;">(Kéo thả từ vào cột này)</span>`;
-                    }
+                    html += `<td><div class="column-drop-zone" ondragover="allowDrop(event)" ondrop="dropToColumn(event, ${colIdx})">`;
+                    colWords.forEach(w => { html += `<div class="drag-word" draggable="true" ondragstart="dragStart(event, '${w}')">${w}</div>`; });
+                    if (colWords.length === 0) html += `<span style="color:#aaa; font-size:12px; text-align:center; padding:20px 0;">(Kéo thả từ vào đây)</span>`;
                     html += `</div></td>`;
                 });
                 html += `</tr></table>`;
-
-                html += `<div class="draggable-words" ondragover="allowDrop(event)" ondrop="dropToBank(event)">
-                            <p style="width:100%; font-size:13px; color:#666;">DANH SÁCH TỪ KÉO THẢ VÀO CÁC CỘT TƯƠNG ỨNG:</p>`;
-                q.words.forEach(w => {
-                    if (!usedWords.includes(w)) {
-                        html += `<div class="drag-word" draggable="true" ondragstart="dragStart(event, '${w}')">${w}</div>`;
-                    }
-                });
+                html += `<div class="draggable-words" ondragover="allowDrop(event)" ondrop="dropToBank(event)"><p style="width:100%; font-size:13px; color:#666;">DANH SÁCH TỪ KÉO THẢ VÀO CÁC CỘT:</p>`;
+                q.words.forEach(w => { if (!usedWords.includes(w)) html += `<div class="drag-word" draggable="true" ondragstart="dragStart(event, '${w}')">${w}</div>`; });
                 html += `</div>`;
             }
-
             document.getElementById("q-options").innerHTML = html;
             renderGrid();
         }
 
         function allowDrop(ev) { ev.preventDefault(); }
-        function dragStart(ev, word) {
-            draggedWord = word;
-            ev.dataTransfer.setData("text", word);
-        }
-
-        function dropToSlot(ev, slotId) {
-            ev.preventDefault();
-            const qId = currentQuestions[currentIndex].id;
-            if (!userAnswers[qId]) userAnswers[qId] = {};
-            userAnswers[qId][slotId] = draggedWord;
-            renderQuestion();
-        }
-
-        function dropToColumn(ev, colIdx) {
-            ev.preventDefault();
-            const qId = currentQuestions[currentIndex].id;
-            if (!userAnswers[qId]) userAnswers[qId] = { 0: [], 1: [] };
-            
-            Object.keys(userAnswers[qId]).forEach(c => {
-                userAnswers[qId][c] = userAnswers[qId][c].filter(w => w !== draggedWord);
-            });
-
-            if (!userAnswers[qId][colIdx]) userAnswers[qId][colIdx] = [];
-            userAnswers[qId][colIdx].push(draggedWord);
-            renderQuestion();
-        }
-
-        function dropToBank(ev) {
-            ev.preventDefault();
-            const qId = currentQuestions[currentIndex].id;
-            const q = currentQuestions[currentIndex];
-            if (q.type === "multi-drag" && userAnswers[qId]) {
-                Object.keys(userAnswers[qId]).forEach(k => {
-                    if (userAnswers[qId][k] === draggedWord) delete userAnswers[qId][k];
-                });
-            } else if (q.type === "multi-column" && userAnswers[qId]) {
-                Object.keys(userAnswers[qId]).forEach(c => {
-                    userAnswers[qId][c] = userAnswers[qId][c].filter(w => w !== draggedWord);
-                });
-            }
-            renderQuestion();
-        }
-
+        function dragStart(ev, word) { draggedWord = word; ev.dataTransfer.setData("text", word); }
+        function dropToSlot(ev, slotId) { ev.preventDefault(); const qId = currentQuestions[currentIndex].id; if (!userAnswers[qId]) userAnswers[qId] = {}; userAnswers[qId][slotId] = draggedWord; renderQuestion(); }
+        function dropToColumn(ev, colIdx) { ev.preventDefault(); const qId = currentQuestions[currentIndex].id; if (!userAnswers[qId]) userAnswers[qId] = { 0: [], 1: [] }; Object.keys(userAnswers[qId]).forEach(c => { userAnswers[qId][c] = userAnswers[qId][c].filter(w => w !== draggedWord); }); if (!userAnswers[qId][colIdx]) userAnswers[qId][colIdx] = []; userAnswers[qId][colIdx].push(draggedWord); renderQuestion(); }
+        function dropToBank(ev) { ev.preventDefault(); const qId = currentQuestions[currentIndex].id; const q = currentQuestions[currentIndex]; if (q.type === "multi-drag" && userAnswers[qId]) Object.keys(userAnswers[qId]).forEach(k => { if (userAnswers[qId][k] === draggedWord) delete userAnswers[qId][k]; }); else if (q.type === "multi-column" && userAnswers[qId]) Object.keys(userAnswers[qId]).forEach(c => { userAnswers[qId][c] = userAnswers[qId][c].filter(w => w !== draggedWord); }); renderQuestion(); }
         function setSlot(slotId) { activeDropSlot = slotId; renderQuestion(); }
-        function clickWord(word) {
-            const qId = currentQuestions[currentIndex].id;
-            if (!userAnswers[qId]) userAnswers[qId] = {};
-            let targetSlot = activeDropSlot !== null ? activeDropSlot : 0;
-            userAnswers[qId][targetSlot] = word;
-            renderQuestion();
-        }
-
+        function clickWord(word) { const qId = currentQuestions[currentIndex].id; if (!userAnswers[qId]) userAnswers[qId] = {}; let targetSlot = activeDropSlot !== null ? activeDropSlot : 0; userAnswers[qId][targetSlot] = word; renderQuestion(); }
         function selectSingle(idx) { userAnswers[currentQuestions[currentIndex].id] = idx; renderGrid(); }
-        function selectMulti(idx) {
-            const qId = currentQuestions[currentIndex].id;
-            if (!userAnswers[qId]) userAnswers[qId] = [];
-            const pos = userAnswers[qId].indexOf(idx);
-            if (pos === -1) userAnswers[qId].push(idx); else userAnswers[qId].splice(pos, 1);
-            renderGrid();
-        }
-        function selectTF(sIdx, val) {
-            const qId = currentQuestions[currentIndex].id;
-            if (!userAnswers[qId]) userAnswers[qId] = {};
-            userAnswers[qId][sIdx] = val;
-            renderQuestion();
-        }
-
+        function selectMulti(idx) { const qId = currentQuestions[currentIndex].id; if (!userAnswers[qId]) userAnswers[qId] = []; const pos = userAnswers[qId].indexOf(idx); if (pos === -1) userAnswers[qId].push(idx); else userAnswers[qId].splice(pos, 1); renderGrid(); }
+        function selectTF(sIdx, val) { const qId = currentQuestions[currentIndex].id; if (!userAnswers[qId]) userAnswers[qId] = {}; userAnswers[qId][sIdx] = val; renderQuestion(); }
+        
         function renderGrid() {
             let html = "";
             currentQuestions.forEach((q, idx) => {
                 let statusClass = userAnswers[q.id] !== undefined ? "answered" : "";
-                if (isSubmitted) {
-                    const isCorrect = checkQuestionCorrect(q);
-                    statusClass = isCorrect ? "correct-btn" : "wrong-btn";
-                }
+                if (isSubmitted) statusClass = checkQuestionCorrect(q) ? "correct-btn" : "wrong-btn";
                 html += `<div class="grid-btn ${statusClass}" onclick="goToQuestion(${idx})">${idx + 1}</div>`;
             });
             document.getElementById("grid").innerHTML = html;
         }
 
         function checkQuestionCorrect(q) {
-            const ans = userAnswers[q.id];
-            if (!ans) return false;
+            const ans = userAnswers[q.id]; if (!ans) return false;
             if (q.type === "single") return ans === q.answer;
             if (q.type === "multi" && Array.isArray(ans)) return ans.length === q.answer.length && ans.every(v => q.answer.includes(v));
-            if (q.type === "tf") {
-                let ok = true;
-                q.statements.forEach((_, idx) => { if (ans[idx] !== q.answer[idx]) ok = false; });
-                return ok;
-            }
-            if (q.type === "multi-drag") {
-                let ok = true;
-                q.items.forEach(item => { if (ans[item.id] !== q.answer[item.id]) ok = false; });
-                return ok;
-            }
-            if (q.type === "multi-column") {
-                let ok = true;
-                Object.keys(q.answer).forEach(colIdx => {
-                    const userCol = ans[colIdx] || [];
-                    const correctCol = q.answer[colIdx] || [];
-                    if (userCol.length !== correctCol.length) ok = false;
-                    else if (!userCol.every(w => correctCol.includes(w))) ok = false;
-                });
-                return ok;
-            }
+            if (q.type === "tf") { let ok = true; q.statements.forEach((_, idx) => { if (ans[idx] !== q.answer[idx]) ok = false; }); return ok; }
+            if (q.type === "multi-drag") { let ok = true; q.items.forEach(item => { if (ans[item.id] !== q.answer[item.id]) ok = false; }); return ok; }
+            if (q.type === "multi-column") { let ok = true; Object.keys(q.answer).forEach(colIdx => { const userCol = ans[colIdx] || []; const correctCol = q.answer[colIdx] || []; if (userCol.length !== correctCol.length) ok = false; else if (!userCol.every(w => correctCol.includes(w))) ok = false; }); return ok; }
             return false;
         }
 
@@ -413,46 +286,24 @@
         function prevQuestion() { if(currentIndex > 0) { currentIndex--; activeDropSlot = null; renderQuestion(); } }
 
         function submitQuiz() {
-            isSubmitted = true;
-            let correctCount = 0;
-            let reviewHtml = "";
-
+            isSubmitted = true; let correctCount = 0; let reviewHtml = "";
             currentQuestions.forEach((q, idx) => {
-                const isCorrect = checkQuestionCorrect(q);
-                if (isCorrect) correctCount++;
-
-                reviewHtml += `<div class="review-card ${isCorrect ? 'correct' : 'wrong'}">`;
-                reviewHtml += `<strong>Câu ${idx + 1}: ${q.title}</strong><br>`;
-                reviewHtml += `<span>Kết quả: <b>${isCorrect ? '✅ ĐÚNG' : '❌ SAI'}</b></span><br>`;
-
-                if (q.type === "single") {
-                    reviewHtml += `Đáp án chuẩn: <i>${q.options[q.answer]}</i>`;
-                } else if (q.type === "multi") {
-                    const correctTexts = q.answer.map(aIdx => q.options[aIdx]).join("; ");
-                    reviewHtml += `Đáp án chuẩn: <i>${correctTexts}</i>`;
-                } else if (q.type === "tf") {
-                    reviewHtml += `Đáp án chuẩn: <i>${q.statements.map((s, sIdx) => `${s} ->${q.answer[sIdx] ? 'Đúng' : 'Sai'}`).join(' | ')}</i>`;
-                } else if (q.type === "multi-drag") {
-                    reviewHtml += `Đáp án chuẩn: <i>${q.items.map(i => `${q.answer[i.id]}`).join(', ')}</i>`;
-                } else if (q.type === "multi-column") {
-                    reviewHtml += `Đáp án chuẩn: <br>`;
-                    q.columns.forEach((cTitle, cIdx) => {
-                        reviewHtml += `- <b>${cTitle}:</b> ${q.answer[cIdx].join(', ')}<br>`;
-                    });
-                }
+                const isCorrect = checkQuestionCorrect(q); if (isCorrect) correctCount++;
+                reviewHtml += `<div class="review-card ${isCorrect ? 'correct' : 'wrong'}"><strong>Câu ${idx + 1}: ${q.title}</strong><br><span>Kết quả: <b>${isCorrect ? '✅ ĐÚNG' : '❌ SAI'}</b></span><br>`;
+                if (q.type === "single") reviewHtml += `Đáp án chuẩn: <i>${q.options[q.answer]}</i>`;
+                else if (q.type === "multi") reviewHtml += `Đáp án chuẩn: <i>${q.answer.map(aIdx => q.options[aIdx]).join("; ")}</i>`;
+                else if (q.type === "tf") reviewHtml += `Đáp án chuẩn: <i>${q.statements.map((s, sIdx) => `${s} ->${q.answer[sIdx] ? 'Đúng' : 'Sai'}`).join(' | ')}</i>`;
+                else if (q.type === "multi-drag") reviewHtml += `Đáp án chuẩn: <i>${q.items.map(i => `${q.answer[i.id]}`).join(', ')}</i>`;
+                else if (q.type === "multi-column") { reviewHtml += `Đáp án chuẩn: <br>`; q.columns.forEach((cTitle, cIdx) => { reviewHtml += `- <b>${cTitle}:</b> ${q.answer[cIdx].join(', ')}<br>`; }); }
                 reviewHtml += `</div>`;
             });
-
             const score = ((correctCount / currentQuestions.length) * 10).toFixed(1);
             const resBox = document.getElementById("result-box");
-            resBox.style.display = "block";
-            resBox.className = "result-box";
+            resBox.style.display = "block"; resBox.className = "result-box";
             resBox.innerHTML = `🎉 Bạn trả lời đúng ${correctCount}/${currentQuestions.length} câu. <br> Tổng điểm: ${score} / 10`;
-
             document.getElementById("review-list").innerHTML = reviewHtml;
             document.getElementById("review-container").style.display = "block";
-            renderGrid();
-            window.scrollTo({ top: 0, behavior: 'smooth' });
+            renderGrid(); window.scrollTo({ top: 0, behavior: 'smooth' });
         }
     </script>
 </body>
