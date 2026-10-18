@@ -74,7 +74,7 @@
                     <option value="6">Bài 6: Vấn đề gia đình trong thời kỳ quá độ</option>
                     <option value="all">Tất cả các bài (Thi tổng hợp)</option>
                 </select>
-                <button class="btn btn-success" onclick="startNewQuiz()">🔀 Đảo câu hỏi & Làm mới</button>
+                <button class="btn btn-success" onclick="startNewQuiz()">🔀 Đảo câu hỏi, đáp án & Làm mới</button>
                 <input type="file" id="file-input" accept=".json" onchange="importJSON(event)" style="display:none">
                 <button class="btn btn-primary" onclick="document.getElementById('file-input').click()">📂 Nạp file ngoài (.json)</button>
                 <button class="btn btn-danger" onclick="clearData()">🗑️ Xóa bộ nhớ đệm</button>
@@ -168,8 +168,8 @@
 
         function loadLesson() {
             const selectedLesson = document.getElementById("lesson-select").value;
-            if (selectedLesson === "all") currentQuestions = [...rawQuestions];
-            else currentQuestions = rawQuestions.filter(q => String(q.lesson) === String(selectedLesson));
+            if (selectedLesson === "all") currentQuestions = JSON.parse(JSON.stringify(rawQuestions));
+            else currentQuestions = JSON.parse(JSON.stringify(rawQuestions.filter(q => String(q.lesson) === String(selectedLesson))));
 
             if (currentQuestions.length === 0) {
                 document.getElementById("q-title").innerText = `Chưa có file bai${selectedLesson}.json trên GitHub. Vui lòng kiểm tra lại file tải lên!`;
@@ -181,8 +181,28 @@
 
         function startNewQuiz() {
             if (!currentQuestions.length) return;
+            
+            // Tải lại câu hỏi gốc từ rawQuestions để đảo mới
+            const selectedLesson = document.getElementById("lesson-select").value;
+            if (selectedLesson === "all") currentQuestions = JSON.parse(JSON.stringify(rawQuestions));
+            else currentQuestions = JSON.parse(JSON.stringify(rawQuestions.filter(q => String(q.lesson) === String(selectedLesson))));
+
+            // Đảo thứ tự danh sách câu hỏi
             currentQuestions = shuffleArray(currentQuestions);
-            currentIndex = 0; userAnswers = {}; isSubmitted = false;
+
+            // Xóa câu trả lời cũ & Chuẩn hóa + Đảo vị trí đáp án từng câu
+            userAnswers = {}; isSubmitted = false;
+            currentQuestions.forEach(q => {
+                if (q.type === "single") {
+                    q.correctText = q.options[q.answer]; // Lưu nội dung đáp án đúng chuẩn
+                    q.options = shuffleArray(q.options);  // Đảo các đáp án
+                } else if (q.type === "multi") {
+                    q.correctTexts = q.answer.map(idx => q.options[idx]); // Lưu danh sách các đáp án đúng
+                    q.options = shuffleArray(q.options);                 // Đảo các đáp án
+                }
+            });
+
+            currentIndex = 0;
             document.getElementById("result-box").style.display = "none";
             document.getElementById("review-container").style.display = "none";
             renderQuestion();
@@ -195,15 +215,15 @@
             document.getElementById("q-progress").innerText = `${currentIndex + 1} / ${currentQuestions.length}`;
             let html = "";
             if (q.type === "single") {
-                q.options.forEach((opt, idx) => {
-                    const checked = userAnswers[q.id] === idx ? "checked" : "";
-                    html += `<label class="option-item"><input type="radio" name="opt_${q.id}" value="${idx}" ${checked} onchange="selectSingle(${idx})"> ${opt}</label>`;
+                q.options.forEach((optText) => {
+                    const checked = userAnswers[q.id] === optText ? "checked" : "";
+                    html += `<label class="option-item"><input type="radio" name="opt_${q.id}" value="${optText}" ${checked} onchange="selectSingle('${optText.replace(/'/g, "\\'")}')"> ${optText}</label>`;
                 });
             } else if (q.type === "multi") {
                 const currentAns = userAnswers[q.id] || [];
-                q.options.forEach((opt, idx) => {
-                    const checked = currentAns.includes(idx) ? "checked" : "";
-                    html += `<label class="option-item"><input type="checkbox" ${checked} onchange="selectMulti(${idx})"> ${opt}</label>`;
+                q.options.forEach((optText) => {
+                    const checked = currentAns.includes(optText) ? "checked" : "";
+                    html += `<label class="option-item"><input type="checkbox" ${checked} onchange="selectMulti('${optText.replace(/'/g, "\\'")}')"> ${optText}</label>`;
                 });
             } else if (q.type === "tf") {
                 const currentAns = userAnswers[q.id] || {};
@@ -242,7 +262,7 @@
                 });
                 html += `</tr></table>`;
                 html += `<div class="draggable-words" ondragover="allowDrop(event)" ondrop="dropToBank(event)"><p style="width:100%; font-size:13px; color:#666;">DANH SÁCH TỪ KÉO THẢ VÀO CÁC CỘT:</p>`;
-                q.words.forEach(w => { if (!usedWords.includes(w)) html += `<div class="drag-word" draggable="true" ondragstart="dragStart(event, '${w}')">${w}</div>`; });
+                q.words.forEach(w => { if (!usedWords.includes(w)) html += `<div class="drag-word" draggable="true" ondragstart="dragStart(event, '${w}')" onclick="clickWord('${w}')">${w}</div>`; });
                 html += `</div>`;
             }
             document.getElementById("q-options").innerHTML = html;
@@ -256,8 +276,9 @@
         function dropToBank(ev) { ev.preventDefault(); const qId = currentQuestions[currentIndex].id; const q = currentQuestions[currentIndex]; if (q.type === "multi-drag" && userAnswers[qId]) Object.keys(userAnswers[qId]).forEach(k => { if (userAnswers[qId][k] === draggedWord) delete userAnswers[qId][k]; }); else if (q.type === "multi-column" && userAnswers[qId]) Object.keys(userAnswers[qId]).forEach(c => { userAnswers[qId][c] = userAnswers[qId][c].filter(w => w !== draggedWord); }); renderQuestion(); }
         function setSlot(slotId) { activeDropSlot = slotId; renderQuestion(); }
         function clickWord(word) { const qId = currentQuestions[currentIndex].id; if (!userAnswers[qId]) userAnswers[qId] = {}; let targetSlot = activeDropSlot !== null ? activeDropSlot : 0; userAnswers[qId][targetSlot] = word; renderQuestion(); }
-        function selectSingle(idx) { userAnswers[currentQuestions[currentIndex].id] = idx; renderGrid(); }
-        function selectMulti(idx) { const qId = currentQuestions[currentIndex].id; if (!userAnswers[qId]) userAnswers[qId] = []; const pos = userAnswers[qId].indexOf(idx); if (pos === -1) userAnswers[qId].push(idx); else userAnswers[qId].splice(pos, 1); renderGrid(); }
+        
+        function selectSingle(optText) { userAnswers[currentQuestions[currentIndex].id] = optText; renderGrid(); }
+        function selectMulti(optText) { const qId = currentQuestions[currentIndex].id; if (!userAnswers[qId]) userAnswers[qId] = []; const pos = userAnswers[qId].indexOf(optText); if (pos === -1) userAnswers[qId].push(optText); else userAnswers[qId].splice(pos, 1); renderGrid(); }
         function selectTF(sIdx, val) { const qId = currentQuestions[currentIndex].id; if (!userAnswers[qId]) userAnswers[qId] = {}; userAnswers[qId][sIdx] = val; renderQuestion(); }
         
         function renderGrid() {
@@ -275,12 +296,12 @@
             if (ans === undefined || ans === null) return false;
             
             if (q.type === "single") {
-                return Number(ans) === Number(q.answer);
+                return ans === q.correctText;
             }
             if (q.type === "multi") {
                 if (!Array.isArray(ans)) return false;
-                if (ans.length !== q.answer.length) return false;
-                return ans.every(v => q.answer.includes(v));
+                if (ans.length !== q.correctTexts.length) return false;
+                return ans.every(v => q.correctTexts.includes(v));
             }
             if (q.type === "tf") {
                 let ok = true; 
@@ -318,8 +339,8 @@
             currentQuestions.forEach((q, idx) => {
                 const isCorrect = checkQuestionCorrect(q); if (isCorrect) correctCount++;
                 reviewHtml += `<div class="review-card ${isCorrect ? 'correct' : 'wrong'}"><strong>Câu ${idx + 1}: ${q.title}</strong><br><span>Kết quả: <b>${isCorrect ? '✅ ĐÚNG' : '❌ SAI'}</b></span><br>`;
-                if (q.type === "single") reviewHtml += `Đáp án chuẩn: <i>${q.options[q.answer]}</i>`;
-                else if (q.type === "multi") reviewHtml += `Đáp án chuẩn: <i>${q.answer.map(aIdx => q.options[aIdx]).join("; ")}</i>`;
+                if (q.type === "single") reviewHtml += `Đáp án chuẩn: <i>${q.correctText}</i>`;
+                else if (q.type === "multi") reviewHtml += `Đáp án chuẩn: <i>${q.correctTexts.join("; ")}</i>`;
                 else if (q.type === "tf") reviewHtml += `Đáp án chuẩn: <i>${q.statements.map((s, sIdx) => `${s} ->${q.answer[sIdx] ? 'Đúng' : 'Sai'}`).join(' | ')}</i>`;
                 else if (q.type === "multi-drag") reviewHtml += `Đáp án chuẩn: <i>${q.items.map(i => `${q.answer[i.id]}`).join(', ')}</i>`;
                 else if (q.type === "multi-column") { reviewHtml += `Đáp án chuẩn: <br>`; q.columns.forEach((cTitle, cIdx) => { reviewHtml += `- <b>${cTitle}:</b> ${q.answer[cIdx].join(', ')}<br>`; }); }
