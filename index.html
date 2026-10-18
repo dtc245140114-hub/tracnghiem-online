@@ -144,12 +144,13 @@
                     const existingMap = new Map(rawQuestions.map(item => [item.id, item]));
                     data.forEach(item => existingMap.set(item.id, item));
                     rawQuestions = Array.from(existingMap.values());
-                    localStorage.setItem("quiz_db", JSON.stringify(rawQuestions));
                 }
             } catch (e) { console.log(`Không tìm thấy file bai${lessonNum}.json trên server.`); }
         }
 
         async function autoLoadCurrentLesson() {
+            rawQuestions = [];
+            localStorage.removeItem("quiz_db");
             const selectedLesson = document.getElementById("lesson-select").value;
             document.getElementById("q-title").innerText = "Đang tải dữ liệu bài học...";
             
@@ -162,8 +163,6 @@
         }
 
         window.onload = async function() {
-            const saved = localStorage.getItem("quiz_db");
-            if (saved) rawQuestions = JSON.parse(saved);
             await autoLoadCurrentLesson();
         };
 
@@ -198,7 +197,7 @@
             if (q.type === "single") {
                 q.options.forEach((opt, idx) => {
                     const checked = userAnswers[q.id] === idx ? "checked" : "";
-                    html += `<label class="option-item"><input type="radio" name="opt" value="${idx}" ${checked} onchange="selectSingle(${idx})"> ${opt}</label>`;
+                    html += `<label class="option-item"><input type="radio" name="opt_${q.id}" value="${idx}" ${checked} onchange="selectSingle(${idx})"> ${opt}</label>`;
                 });
             } else if (q.type === "multi") {
                 const currentAns = userAnswers[q.id] || [];
@@ -272,12 +271,41 @@
         }
 
         function checkQuestionCorrect(q) {
-            const ans = userAnswers[q.id]; if (!ans) return false;
-            if (q.type === "single") return ans === q.answer;
-            if (q.type === "multi" && Array.isArray(ans)) return ans.length === q.answer.length && ans.every(v => q.answer.includes(v));
-            if (q.type === "tf") { let ok = true; q.statements.forEach((_, idx) => { if (ans[idx] !== q.answer[idx]) ok = false; }); return ok; }
-            if (q.type === "multi-drag") { let ok = true; q.items.forEach(item => { if (ans[item.id] !== q.answer[item.id]) ok = false; }); return ok; }
-            if (q.type === "multi-column") { let ok = true; Object.keys(q.answer).forEach(colIdx => { const userCol = ans[colIdx] || []; const correctCol = q.answer[colIdx] || []; if (userCol.length !== correctCol.length) ok = false; else if (!userCol.every(w => correctCol.includes(w))) ok = false; }); return ok; }
+            const ans = userAnswers[q.id]; 
+            if (ans === undefined || ans === null) return false;
+            
+            if (q.type === "single") {
+                return Number(ans) === Number(q.answer);
+            }
+            if (q.type === "multi") {
+                if (!Array.isArray(ans)) return false;
+                if (ans.length !== q.answer.length) return false;
+                return ans.every(v => q.answer.includes(v));
+            }
+            if (q.type === "tf") {
+                let ok = true; 
+                q.statements.forEach((_, idx) => { 
+                    if (ans[idx] !== q.answer[idx]) ok = false; 
+                }); 
+                return ok;
+            }
+            if (q.type === "multi-drag") {
+                let ok = true; 
+                q.items.forEach(item => { 
+                    if (ans[item.id] !== q.answer[item.id]) ok = false; 
+                }); 
+                return ok;
+            }
+            if (q.type === "multi-column") {
+                let ok = true; 
+                Object.keys(q.answer).forEach(colIdx => { 
+                    const userCol = ans[colIdx] || []; 
+                    const correctCol = q.answer[colIdx] || []; 
+                    if (userCol.length !== correctCol.length) ok = false; 
+                    else if (!userCol.every(w => correctCol.includes(w))) ok = false; 
+                }); 
+                return ok;
+            }
             return false;
         }
 
